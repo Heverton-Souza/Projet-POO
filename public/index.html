@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crônicas do Reino</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div>
+      <span class="eyebrow">Sistema de RPG</span>
+      <h1>Crônicas do Reino</h1>
+    </div>
+    <div id="user-area" class="user-area hidden">
+      <span id="user-name"></span>
+      <span id="user-role" class="badge"></span>
+      <button id="logout" class="button ghost">Sair</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="message" class="message hidden" role="status"></div>
+    <section id="auth-view" class="auth-grid">
+      <article class="panel hero-panel">
+        <span class="eyebrow">Sua aventura começa aqui</span>
+        <h2>Construa heróis, aceite missões e enfrente monstros.</h2>
+        <p>Uma interface simples sobre o backend orientado a objetos do projeto.</p>
+        <div class="demo-box">
+          <strong>Acesso inicial do Mestre Administrador</strong>
+          <code>mestre@rpg.local</code>
+          <code>Mestre@123</code>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-auth-tab="login">Entrar</button>
+          <button class="tab" data-auth-tab="register">Criar conta</button>
+        </div>
+        <form id="login-form">
+          <label>E-mail <input name="email" type="email" required value="mestre@rpg.local"></label>
+          <label>Senha <input name="password" type="password" required value="Mestre@123"></label>
+          <button class="button primary" type="submit">Entrar no reino</button>
+        </form>
+        <form id="register-form" class="hidden">
+          <label>Nome <input name="name" required></label>
+          <label>E-mail <input name="email" type="email" required></label>
+          <label>Senha <input name="password" type="password" minlength="8" required></label>
+          <button class="button primary" type="submit">Cadastrar jogador</button>
+        </form>
+      </article>
+    </section>
+
+    <section id="game-view" class="hidden">
+      <div class="dashboard-grid">
+        <aside class="panel sidebar">
+          <div class="section-title">
+            <div><span class="eyebrow">Heróis</span><h2>Personagens</h2></div>
+            <button id="show-create" class="button small">Novo</button>
+          </div>
+          <form id="character-form" class="compact-form hidden">
+            <label>Nome <input name="name" required></label>
+            <label>Classe <select name="classId" id="class-select" required></select></label>
+            <label>Raça <select name="raceId" id="race-select" required></select></label>
+            <button class="button primary" type="submit">Criar personagem</button>
+          </form>
+          <div id="character-list" class="card-list"></div>
+        </aside>
+
+        <section class="content">
+          <article id="empty-state" class="panel empty-state">
+            <span class="crest">⚔</span>
+            <h2>Selecione um personagem</h2>
+            <p>Os detalhes da aventura serão exibidos aqui.</p>
+          </article>
+
+          <div id="character-detail" class="hidden">
+            <article id="character-summary" class="panel character-summary"></article>
+            <div class="two-columns">
+              <article class="panel"><span class="eyebrow">Talentos</span><h3>Habilidades</h3><div id="skill-list" class="card-list"></div></article>
+              <article class="panel"><span class="eyebrow">Jornada</span><h3>Missões</h3><div id="mission-list" class="card-list"></div></article>
+              <article class="panel"><span class="eyebrow">Batalha</span><h3>Inimigos</h3><div id="enemy-list" class="card-list"></div><div id="combat-box"></div></article>
+              <article class="panel"><span class="eyebrow">Equipamento</span><h3>Inventário</h3><div id="inventory-list" class="card-list"></div></article>
+              <article class="panel"><span class="eyebrow">Memórias</span><h3>Histórico</h3><div id="history-list" class="timeline"></div></article>
+            </div>
+          </div>
+
+          <article id="admin-panel" class="panel admin-panel hidden">
+            <div class="admin-heading">
+              <div>
+                <span class="eyebrow">Área administrativa</span>
+                <h2>Painel do Mestre</h2>
+                <p>Gerencie o mundo do jogo sem precisar usar a documentação da API.</p>
+              </div>
+              <a class="button ghost small" href="/docs" target="_blank" rel="noreferrer">API avançada</a>
+            </div>
+
+            <div class="tabs admin-tabs" role="tablist" aria-label="Seções administrativas">
+              <button class="tab active" data-admin-tab="overview">Visão geral</button>
+              <button class="tab" data-admin-tab="catalogs">Cadastros</button>
+              <button class="tab" data-admin-tab="inventory">Personagens e itens</button>
+              <button class="tab" data-admin-tab="users">Usuários</button>
+            </div>
+
+            <section id="admin-view-overview" class="admin-view">
+              <div id="admin-summary" class="stats"></div>
+              <div class="admin-shortcuts">
+                <button class="admin-shortcut" data-admin-tab="catalogs">
+                  <strong>Criar e editar conteúdo</strong>
+                  <span>Classes, raças, habilidades, itens, missões e inimigos.</span>
+                </button>
+                <button class="admin-shortcut" data-admin-tab="inventory">
+                  <strong>Gerenciar personagens</strong>
+                  <span>Consulte os heróis e entregue ou remova itens.</span>
+                </button>
+                <button class="admin-shortcut" data-admin-tab="users">
+                  <strong>Gerenciar usuários</strong>
+                  <span>Consulte contas e, como Administrador, altere perfis.</span>
+                </button>
+              </div>
+            </section>
+
+            <section id="admin-view-catalogs" class="admin-view hidden">
+              <div class="admin-toolbar">
+                <label>Tipo de cadastro
+                  <select id="admin-resource">
+                    <option value="classes">Classes</option>
+                    <option value="races">Raças</option>
+                    <option value="skills" selected>Habilidades</option>
+                    <option value="items">Itens</option>
+                    <option value="missions">Missões</option>
+                    <option value="enemies">Inimigos</option>
+                  </select>
+                </label>
+                <button class="button primary" data-action="admin-new-catalog">Novo cadastro</button>
+              </div>
+              <div class="admin-workspace">
+                <div>
+                  <div id="admin-catalog-title" class="section-title"></div>
+                  <div id="admin-catalog-list" class="admin-record-list"></div>
+                </div>
+                <section id="admin-catalog-editor" class="admin-editor hidden">
+                  <div class="section-title">
+                    <h3 id="admin-editor-title">Novo cadastro</h3>
+                    <button class="button ghost small" type="button" data-action="admin-cancel-editor">Fechar</button>
+                  </div>
+                  <form id="admin-catalog-form"></form>
+                </section>
+              </div>
+            </section>
+
+            <section id="admin-view-inventory" class="admin-view hidden">
+              <div class="admin-workspace">
+                <div>
+                  <span class="eyebrow">Todos os jogadores</span>
+                  <h3>Personagens</h3>
+                  <div id="admin-character-list" class="admin-record-list"></div>
+                </div>
+                <div class="admin-editor">
+                  <span class="eyebrow">Inventário</span>
+                  <h3>Entregar item</h3>
+                  <form id="grant-item-form">
+                    <label>Personagem <select id="grant-character" name="characterId" required></select></label>
+                    <label>Item <select id="grant-item" name="itemId" required></select></label>
+                    <label>Quantidade <input name="quantity" type="number" min="1" value="1" required></label>
+                    <button class="button primary" type="submit">Entregar item</button>
+                  </form>
+                  <div class="inventory-admin-heading">
+                    <h3>Inventário atual</h3>
+                    <span id="admin-inventory-owner" class="muted"></span>
+                  </div>
+                  <div id="admin-inventory-list" class="card-list">
+                    <p class="muted">Selecione um personagem para consultar.</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section id="admin-view-users" class="admin-view hidden">
+              <div class="section-title">
+                <div><span class="eyebrow">Contas cadastradas</span><h3>Usuários e permissões</h3></div>
+              </div>
+              <p id="admin-role-help" class="muted"></p>
+              <div id="admin-user-list" class="admin-record-list"></div>
+            </section>
+          </article>
+        </section>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

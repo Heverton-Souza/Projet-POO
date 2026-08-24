@@ -1,0 +1,2 @@
+"""Aplicação Crônicas do Reino."""
+
