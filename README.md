@@ -1,6 +1,6 @@
 # Crônicas do Reino — Sistema de RPG
 
-Backend Python baseado no documento [Descricao_Projeto.pdf](./Descricao_Projeto.pdf). O projeto usa Clean Architecture, SOLID, Builder, Strategy e Observer para implementar autenticação, personagens, missões, inventário, combates, evolução, histórico e administração do jogo.
+Backend Python baseado no documento [Descricao_Projeto.pdf](./Descricao_Projeto.pdf). O projeto usa Clean Architecture, SOLID, Builder, Strategy e Observer para implementar autenticação, personagens, missões, inventário, combates, evolução, histórico e administração do jogo. As entidades ficam explícitas em `app/entities` e os casos de uso UC01–UC03 possuem classes com método `execute` em `app/use_case`.
 
 O diagrama de classes do PDF foi mantido como referência e será atualizado somente quando o código estiver fechado, conforme combinado.
 
@@ -88,8 +88,12 @@ Durante a luta, um HUD central mantém vida, energia, Força, Defesa, Agilidade,
 
 ```text
 app/
-├── domain/          # Entidades, regras e padrões
-├── application/     # Casos de uso, autorização e ports
+├── entities/        # Entidades: usuário, personagem, missão, item, combate etc.
+├── use_case/        # UC01 Criar Personagem, UC02 Aceitar Missão e UC03 Realizar Combate
+├── domain/          # Enums, erros, eventos e padrões
+├── application/
+│   ├── game_services.py  # Operações auxiliares agrupadas por área
+│   └── ports.py     # Interfaces de entrada e saída da aplicação
 ├── infrastructure/  # SQLite, segurança, eventos e repositório
 ├── interfaces/      # API FastAPI
 ├── config.py

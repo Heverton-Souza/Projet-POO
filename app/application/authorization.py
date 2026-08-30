@@ -1,6 +1,6 @@
 from typing import Any
 
-from app.domain.entities import Character
+from app.entities import Character
 from app.domain.enums import ADMIN_ROLES, UserRole
 from app.domain.errors import AuthorizationError
 
@@ -17,4 +17,3 @@ class AuthorizationPolicy:
     def require_character_owner(self, user: dict[str, Any], character: Character) -> None:
         if character.player_id != user["id"] and UserRole(user["role"]) not in ADMIN_ROLES:
             raise AuthorizationError("Este personagem pertence a outro jogador.")
-

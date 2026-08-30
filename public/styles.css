@@ -87,8 +87,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--gold); box-shado
 .combat-hud-header, .combatant-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .combat-hud-header h3 { margin: 4px 0 14px; font-size: 1.35rem; }
 .dice-label { display: grid; width: 48px; height: 48px; place-items: center; color: #1b1710; border-radius: 11px; background: var(--gold); font-weight: 900; }
-.compat-warning { display: grid; gap: 4px; margin-bottom: 12px; padding: 11px 13px; color: #ffd8d1; border: 1px solid #bd5b4c88; border-radius: 10px; background: #3b211e; }
-.compat-warning span { color: var(--muted); font-size: .76rem; line-height: 1.4; }
 .combatants { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .combatant { padding: 13px; border: 1px solid var(--line); border-radius: 11px; background: #090b0bcc; }
 .combatant-title { align-items: baseline; margin-bottom: 11px; }

@@ -6,10 +6,14 @@ from app.application.ports import DiceRoller
 from app.application.game_services import (
     AdminService,
     CharacterService,
-    CombatService,
     HistoryService,
     InventoryService,
     MissionService,
+)
+from app.use_case import (
+    AcceptMissionUseCase,
+    CreateCharacterUseCase,
+    PerformCombatUseCase,
 )
 from app.infrastructure.database import Database
 from app.infrastructure.dice import D100DiceRoller
@@ -22,14 +26,21 @@ from .config import Config
 
 
 @dataclass
+class UseCases:
+    create_character: CreateCharacterUseCase
+    accept_mission: AcceptMissionUseCase
+    perform_combat: PerformCombatUseCase
+
+
+@dataclass
 class Services:
     auth: AuthService
     characters: CharacterService
     missions: MissionService
     inventory: InventoryService
-    combats: CombatService
     admin: AdminService
     history: HistoryService
+    use_cases: UseCases
 
 
 @dataclass
@@ -57,12 +68,10 @@ def create_container(config: Config, dice_roller: DiceRoller | None = None) -> C
     if config.seed:
         seed_database(repository, password_hasher, id_generator, config)
 
-    services = Services(
-        auth=AuthService(repository, password_hasher, token_service, id_generator, config.session_hours),
-        characters=CharacterService(repository, repository, events, authorization),
-        missions=MissionService(repository, repository, events, authorization),
-        inventory=InventoryService(repository, repository, repository, events, authorization),
-        combats=CombatService(
+    use_cases = UseCases(
+        create_character=CreateCharacterUseCase(repository, repository, events),
+        accept_mission=AcceptMissionUseCase(repository, repository, events, authorization),
+        perform_combat=PerformCombatUseCase(
             repository,
             repository,
             repository,
@@ -71,7 +80,14 @@ def create_container(config: Config, dice_roller: DiceRoller | None = None) -> C
             id_generator,
             active_dice_roller,
         ),
+    )
+    services = Services(
+        auth=AuthService(repository, password_hasher, token_service, id_generator, config.session_hours),
+        characters=CharacterService(repository, events, authorization),
+        missions=MissionService(repository, repository, events, authorization),
+        inventory=InventoryService(repository, repository, repository, events, authorization),
         admin=AdminService(repository, repository, repository, authorization),
         history=HistoryService(repository, repository, authorization),
+        use_cases=use_cases,
     )
     return Container(database, repository, services)

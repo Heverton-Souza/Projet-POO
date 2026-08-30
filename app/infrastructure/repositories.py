@@ -13,9 +13,22 @@ from app.application.ports import (
     MissionRepository,
     UserRepository,
 )
-from app.domain.entities import ATTRIBUTE_FIELDS, Attributes, Character, MissionProgress
 from app.domain.errors import ConflictError, NotFoundError, ValidationError
 from app.domain.events import DomainEvent
+from app.entities import (
+    ATTRIBUTE_FIELDS,
+    Attributes,
+    Character,
+    CharacterClass,
+    Combat,
+    Enemy,
+    Item,
+    Mission,
+    MissionProgress,
+    Race,
+    Skill,
+    User,
+)
 
 from .database import Database
 
@@ -117,10 +130,12 @@ class SqliteRepository(
         current = self.find_catalog(resource, item_id)
         assert current is not None
         merged = {**current, **data}
-        if resource == "classes":
-            merged["attributes"] = {**current["attributes"], **data.get("attributes", {})}
-        if resource == "races":
-            merged["modifiers"] = {**current["modifiers"], **data.get("modifiers", {})}
+        nested_field = {"classes": "attributes", "races": "modifiers"}.get(resource)
+        if nested_field:
+            merged[nested_field] = {
+                **current[nested_field],
+                **data.get(nested_field, {}),
+            }
         values = self._normalize_catalog(resource, merged)
         assignments = ", ".join(f"{column} = ?" for column in values)
         try:
@@ -197,10 +212,12 @@ class SqliteRepository(
         rows = self.db.fetchall(
             """
             SELECT m.* FROM missions m
+            JOIN characters c ON c.id = ?
             WHERE m.status = 'DISPONIVEL'
+              AND m.min_level <= c.level
               AND NOT EXISTS (
                 SELECT 1 FROM character_missions cm
-                WHERE cm.mission_id = m.id AND cm.character_id = ?
+                WHERE cm.mission_id = m.id AND cm.character_id = c.id
               )
             ORDER BY m.min_level, m.title
             """,
@@ -211,18 +228,26 @@ class SqliteRepository(
     def find_mission(self, mission_id: str) -> dict[str, Any] | None:
         return self.find_catalog("missions", mission_id)
 
-    def accept_mission(self, character_id: str, mission_id: str) -> MissionProgress:
+    def accept_mission(self, character: Character, mission_id: str) -> MissionProgress:
         mission = self.find_mission(mission_id)
         assert mission is not None
         progress_id = str(uuid4())
         try:
-            self.db.execute(
-                """
-                INSERT INTO character_missions (id, character_id, mission_id, status, progress, target, accepted_at)
-                VALUES (?, ?, ?, 'ACEITA', 0, ?, ?)
-                """,
-                (progress_id, character_id, mission_id, mission["target"], datetime.now(UTC).isoformat()),
-            )
+            with self.db.transaction():
+                self.db.execute(
+                    """
+                    INSERT INTO character_missions (id, character_id, mission_id, status, progress, target, accepted_at)
+                    VALUES (?, ?, ?, 'ACEITA', 0, ?, ?)
+                    """,
+                    (
+                        progress_id,
+                        character.id,
+                        mission_id,
+                        mission["target"],
+                        datetime.now(UTC).isoformat(),
+                    ),
+                )
+                self._save_character(character)
         except sqlite3.IntegrityError as error:
             raise ConflictError("Esta missão já foi aceita pelo personagem.") from error
         result = self.find_mission_progress(progress_id)
@@ -425,10 +450,14 @@ class SqliteRepository(
     def _map_user(row: sqlite3.Row | None) -> dict[str, Any] | None:
         if not row:
             return None
-        return {
-            "id": row["id"], "name": row["name"], "email": row["email"],
-            "passwordHash": row["password_hash"], "role": row["role"], "createdAt": row["created_at"],
-        }
+        return User(
+            id=row["id"],
+            name=row["name"],
+            email=row["email"],
+            password_hash=row["password_hash"],
+            role=row["role"],
+            created_at=row["created_at"],
+        ).to_dict()
 
     @staticmethod
     def _catalog(resource: str) -> tuple[str, str]:
@@ -438,45 +467,77 @@ class SqliteRepository(
 
     def _map_catalog(self, resource: str, row: sqlite3.Row) -> dict[str, Any]:
         if resource == "classes":
-            return {
-                "id": row["id"], "name": row["name"], "description": row["description"],
-                "attributes": {name: row[name] for name in ATTRIBUTE_FIELDS}, "baseHealth": row["base_health"],
-                "baseEnergy": row["base_energy"],
-            }
+            return CharacterClass(
+                id=row["id"],
+                name=row["name"],
+                description=row["description"],
+                attributes=Attributes.from_dict({name: row[name] for name in ATTRIBUTE_FIELDS}),
+                base_health=row["base_health"],
+                base_energy=row["base_energy"],
+            ).to_dict()
         if resource == "races":
-            return {
-                "id": row["id"], "name": row["name"], "description": row["description"],
-                "modifiers": {name: row[name] for name in ATTRIBUTE_FIELDS},
-            }
+            return Race(
+                id=row["id"],
+                name=row["name"],
+                description=row["description"],
+                modifiers=Attributes.from_dict({name: row[name] for name in ATTRIBUTE_FIELDS}),
+            ).to_dict()
         if resource == "skills":
-            return {
-                "id": row["id"], "name": row["name"], "description": row["description"],
-                "type": row["type"], "energyCost": row["energy_cost"], "damage": row["damage"],
-                "effect": row["effect"], "cooldown": row["cooldown"], "minLevel": row["min_level"],
-                "classId": row["class_id"], "raceId": row["race_id"],
-            }
+            return Skill(
+                id=row["id"],
+                name=row["name"],
+                description=row["description"],
+                type=row["type"],
+                energy_cost=row["energy_cost"],
+                damage=row["damage"],
+                effect=row["effect"],
+                cooldown=row["cooldown"],
+                min_level=row["min_level"],
+                class_id=row["class_id"],
+                race_id=row["race_id"],
+            ).to_dict()
         if resource == "items":
-            return {
-                "id": row["id"], "name": row["name"], "type": row["type"],
-                "description": row["description"], "rarity": row["rarity"], "value": row["value"],
-                "effectHealth": row["effect_health"], "effectEnergy": row["effect_energy"],
-                "attackBonus": row["attack_bonus"], "defenseBonus": row["defense_bonus"],
-                "requiredClassId": row["required_class_id"], "minLevel": row["min_level"],
-            }
+            return Item(
+                id=row["id"],
+                name=row["name"],
+                type=row["type"],
+                description=row["description"],
+                rarity=row["rarity"],
+                value=row["value"],
+                effect_health=row["effect_health"],
+                effect_energy=row["effect_energy"],
+                attack_bonus=row["attack_bonus"],
+                defense_bonus=row["defense_bonus"],
+                required_class_id=row["required_class_id"],
+                min_level=row["min_level"],
+            ).to_dict()
         if resource == "missions":
-            return {
-                "id": row["id"], "title": row["title"], "description": row["description"],
-                "objective": row["objective"], "minLevel": row["min_level"], "status": row["status"],
-                "target": row["target"], "rewardExperience": row["reward_experience"],
-                "rewardCoins": row["reward_coins"], "rewardItemId": row["reward_item_id"],
-                "rewardItemQuantity": row["reward_item_quantity"],
-            }
-        return {
-            "id": row["id"], "name": row["name"], "type": row["type"], "level": row["level"],
-            "health": row["health"], "strength": row["strength"], "defense": row["defense"],
-            "agility": row["agility"], "rewardExperience": row["reward_experience"],
-            "rewardCoins": row["reward_coins"], "rewardItemId": row["reward_item_id"],
-        }
+            return Mission(
+                id=row["id"],
+                title=row["title"],
+                description=row["description"],
+                objective=row["objective"],
+                min_level=row["min_level"],
+                status=row["status"],
+                target=row["target"],
+                reward_experience=row["reward_experience"],
+                reward_coins=row["reward_coins"],
+                reward_item_id=row["reward_item_id"],
+                reward_item_quantity=row["reward_item_quantity"],
+            ).to_dict()
+        return Enemy(
+            id=row["id"],
+            name=row["name"],
+            type=row["type"],
+            level=row["level"],
+            health=row["health"],
+            strength=row["strength"],
+            defense=row["defense"],
+            agility=row["agility"],
+            reward_experience=row["reward_experience"],
+            reward_coins=row["reward_coins"],
+            reward_item_id=row["reward_item_id"],
+        ).to_dict()
 
     def _normalize_catalog(self, resource: str, data: dict[str, Any]) -> dict[str, Any]:
         if resource == "classes":
@@ -655,12 +716,18 @@ class SqliteRepository(
 
     @staticmethod
     def _map_combat(row: sqlite3.Row, turns: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-        return {
-            "id": row["id"], "characterId": row["character_id"], "enemyId": row["enemy_id"],
-            "enemyName": row["enemy_name"], "status": row["status"], "enemyHealth": row["enemy_health"],
-            "enemyMaxHealth": row["enemy_max_health"], "startedAt": row["started_at"],
-            "finishedAt": row["finished_at"], "turns": turns or [],
-        }
+        return Combat(
+            id=row["id"],
+            character_id=row["character_id"],
+            enemy_id=row["enemy_id"],
+            enemy_name=row["enemy_name"],
+            status=row["status"],
+            enemy_health=row["enemy_health"],
+            enemy_max_health=row["enemy_max_health"],
+            started_at=row["started_at"],
+            finished_at=row["finished_at"],
+            turns=turns or [],
+        ).to_dict()
 
     @staticmethod
     def _text(value: Any, label: str) -> str:

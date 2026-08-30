@@ -1,2 +1,1 @@
-"""Entidades e regras independentes de framework e banco de dados."""
-
+"""Enums, erros, eventos e padrões independentes de framework e banco de dados."""

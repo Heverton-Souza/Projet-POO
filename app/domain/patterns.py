@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from .entities import Attributes, Character
+from app.entities import Attributes, Character
 from .errors import ConflictError, ValidationError
 
 

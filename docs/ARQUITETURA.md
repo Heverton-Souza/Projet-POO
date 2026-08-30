@@ -6,6 +6,10 @@ A implementação deriva dos requisitos e dos casos de uso **Criar Personagem**,
 
 Missões globais são modelos cadastrados pelo Mestre. O progresso fica separado por personagem em `character_missions`, permitindo que vários jogadores aceitem a mesma missão.
 
+## Diagrama de classes atualizado
+
+O novo diagrama com foco nas entidades, nos três casos de uso e em seus métodos está disponível em [PDF](./DIAGRAMA_CLASSES_USE_CASES_ENTITIES.pdf), [PNG](./DIAGRAMA_CLASSES_USE_CASES_ENTITIES.png) e [HTML editável](./DIAGRAMA_CLASSES_USE_CASES_ENTITIES.html). A leitura completa de cada classe, método e relacionamento está em [EXPLICACAO_DIAGRAMA_CLASSES.md](./EXPLICACAO_DIAGRAMA_CLASSES.md).
+
 ## Escolha da stack Python
 
 Foi adotado FastAPI para a camada HTTP e `sqlite3` da biblioteca padrão para persistência. Não foi utilizado ORM porque o projeto é acadêmico, pequeno e possui consultas diretas simples. A separação por ports permite substituir SQLite ou introduzir SQLAlchemy futuramente sem alterar o domínio.
@@ -20,13 +24,25 @@ Também foram evitadas bibliotecas extras para configuração, segurança e test
 
 ## Clean Architecture
 
+### `app/entities`
+
+Contém as classes que representam os elementos do RPG: `User`, `CharacterClass`, `Race`, `Character`, `Skill`, `Item`, `Mission`, `MissionProgress`, `Enemy` e `Combat`. As entidades com regras próprias, como `Character` e `MissionProgress`, protegem seu estado por meio de métodos.
+
 ### `app/domain`
 
-Não importa FastAPI nem SQLite. Contém `Character`, `Attributes`, `MissionProgress`, eventos e os padrões de projeto.
+Não importa FastAPI nem SQLite. Contém enums, erros, eventos e os padrões de projeto usados pelas entidades e pelos casos de uso.
 
 ### `app/application`
 
-Orquestra os casos de uso. Depende das interfaces de `ports.py`, nunca da implementação SQLite.
+Orquestra a aplicação e depende das interfaces de `ports.py`, nunca da implementação SQLite.
+
+Os três casos de uso detalhados no documento possuem classes explícitas em `app/use_case`:
+
+- `CreateCharacterUseCase.execute` — UC01, Criar Personagem;
+- `AcceptMissionUseCase.execute` — UC02, Aceitar Missão;
+- `PerformCombatUseCase.execute` — UC03, Realizar Combate.
+
+Os serviços de aplicação agrupam somente as operações auxiliares, como consultar personagens, atualizar progresso, administrar inventário e listar histórico.
 
 ### `app/infrastructure`
 
@@ -38,15 +54,15 @@ Converte HTTP/JSON em chamadas aos casos de uso. O arquivo `api.py` também exp�
 
 ### Composition root
 
-`app/container.py` cria as implementações e injeta todas as dependências. Nenhum caso de uso instancia infraestrutura diretamente.
+`app/container.py` cria as implementações, reúne os casos de uso em `UseCases` e injeta todas as dependências. Nenhum caso de uso instancia infraestrutura diretamente.
 
-O d100 segue a mesma inversão de dependência: `CombatService` depende do port `DiceRoller`, enquanto `D100DiceRoller` fornece a aleatoriedade real na infraestrutura. Testes injetam resultados fixos, mantendo o combate determinístico sem introduzir um quarto padrão da lista escolhida.
+O d100 segue a mesma inversão de dependência: `PerformCombatUseCase` depende do port `DiceRoller`, enquanto `D100DiceRoller` fornece a aleatoriedade real na infraestrutura. Testes injetam resultados fixos, mantendo o combate determinístico sem introduzir um quarto padrão da lista escolhida.
 
 ## Os três padrões escolhidos
 
 ### 1. Builder — criação de personagem
 
-Implementação: `CharacterBuilder` em `app/domain/patterns.py`.
+Implementação: `CharacterBuilder` em `app/domain/patterns.py`, utilizado por `CreateCharacterUseCase`.
 
 Criar um personagem exige aplicar classe, raça, atributos, habilidades e recursos iniciais. Builder divide essa construção em etapas e impede a entrega de um personagem incompleto. Corresponde ao UC01 e às RN01–RN03.
 

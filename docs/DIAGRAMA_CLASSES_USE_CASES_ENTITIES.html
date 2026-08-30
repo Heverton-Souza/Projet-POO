@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Diagrama de Classes — Use Cases e Entities</title>
+  <style>
+    @page { size: 56.25in 33.333in; margin: 0; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 5400px; height: 3200px; overflow: hidden; }
+    body { font-family: "Segoe UI", Arial, sans-serif; background: #f5f8fb; color: #172536; }
+    .canvas {
+      position: relative;
+      width: 5400px;
+      height: 3200px;
+      overflow: hidden;
+      background:
+        linear-gradient(rgba(42, 73, 101, .035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(42, 73, 101, .035) 1px, transparent 1px),
+        #f7fafc;
+      background-size: 40px 40px;
+    }
+    .header { position: absolute; left: 80px; top: 40px; z-index: 4; }
+    .header h1 { margin: 0; font-size: 58px; line-height: 1.05; color: #102438; letter-spacing: -1.5px; }
+    .header p { margin: 10px 0 0; font-size: 24px; color: #577087; }
+    .legend {
+      position: absolute; right: 80px; top: 45px; z-index: 4;
+      width: 1520px; padding: 18px 24px; border-radius: 14px;
+      border: 2px solid #cad6e0; background: rgba(255,255,255,.94);
+      font-size: 19px; line-height: 1.45; color: #44596c;
+    }
+    .legend b { color: #172536; }
+    .key { display: inline-flex; align-items: center; margin-right: 24px; white-space: nowrap; }
+    .swatch { width: 30px; height: 15px; margin-right: 8px; border: 2px solid; border-radius: 4px; }
+    .swatch.uc { background: #e5f0ff; border-color: #3d76b8; }
+    .swatch.entity { background: #e8f7ef; border-color: #3f8e67; }
+    .swatch.pattern { background: #fff4dd; border-color: #bd7b23; }
+    .package {
+      position: absolute; z-index: 0; border: 3px solid; border-radius: 20px;
+      background: rgba(255,255,255,.54);
+    }
+    .package .package-label {
+      position: absolute; left: 24px; top: -25px; padding: 8px 18px;
+      border-radius: 10px 10px 0 0; color: white; font-size: 22px;
+      font-weight: 800; letter-spacing: .5px;
+    }
+    .package.uc { left: 45px; top: 170px; width: 5310px; height: 640px; border-color: #6d98cb; background: rgba(231,241,253,.54); }
+    .package.uc .package-label { background: #376fae; }
+    .package.patterns { left: 45px; top: 860px; width: 5310px; height: 500px; border-color: #d7a45c; background: rgba(255,246,226,.58); }
+    .package.patterns .package-label { background: #a96b18; }
+    .package.entities { left: 45px; top: 1420px; width: 5310px; height: 1715px; border-color: #64a886; background: rgba(232,247,239,.52); }
+    .package.entities .package-label { background: #2f7d57; }
+    .uml {
+      position: absolute; z-index: 3; background: #fff; border: 3px solid;
+      border-radius: 12px; box-shadow: 0 8px 22px rgba(24,51,75,.12); overflow: hidden;
+    }
+    .uml.usecase { border-color: #3d76b8; }
+    .uml.entity { border-color: #3f8e67; }
+    .uml.pattern { border-color: #bd7b23; }
+    .uml .title { padding: 12px 16px 13px; text-align: center; font-size: 25px; font-weight: 800; border-bottom: 2px solid; }
+    .uml.usecase .title { background: #e5f0ff; border-color: #7fa6d2; color: #1e558e; }
+    .uml.entity .title { background: #e8f7ef; border-color: #82b89d; color: #216747; }
+    .uml.pattern .title { background: #fff4dd; border-color: #d5ab6f; color: #88530e; }
+    .stereotype { display: block; margin-bottom: 3px; font-size: 16px; font-weight: 600; letter-spacing: .6px; }
+    .compartment { padding: 10px 15px; border-top: 2px solid #d8e1e8; font-family: Consolas, "Courier New", monospace; font-size: 17px; line-height: 1.42; }
+    .compartment:first-of-type { border-top: 0; }
+    .line { min-height: 24px; white-space: nowrap; }
+    .method { color: #163b5a; }
+    .private { color: #724812; }
+    .type { color: #5e6e7c; }
+    .note {
+      position: absolute; z-index: 4; padding: 14px 18px; border-radius: 10px;
+      border: 2px dashed #8b9bab; background: #fff; color: #40566a;
+      font-size: 18px; line-height: 1.35;
+    }
+    .connections { position: absolute; inset: 0; width: 5400px; height: 3200px; z-index: 1; overflow: visible; }
+    .assoc { fill: none; stroke: #52687a; stroke-width: 4; }
+    .composition { fill: none; stroke: #2f7d57; stroke-width: 4; }
+    .dependency { fill: none; stroke: #316eaa; stroke-width: 4; stroke-dasharray: 13 9; }
+    .pattern-link { fill: none; stroke: #a96b18; stroke-width: 4; }
+    .inheritance { fill: none; stroke: #a96b18; stroke-width: 4; }
+    .rel-label { font: 18px "Segoe UI", Arial, sans-serif; fill: #30475a; paint-order: stroke; stroke: #f7fafc; stroke-width: 7px; stroke-linejoin: round; }
+    .dep-label { fill: #245e97; }
+    .footer { position: absolute; z-index: 5; left: 80px; right: 80px; bottom: 24px; display: flex; justify-content: space-between; font-size: 18px; color: #6d8090; }
+
+    #uc-create { left: 100px; top: 240px; width: 1400px; height: 500px; }
+    #uc-accept { left: 2000px; top: 240px; width: 1400px; height: 500px; }
+    #uc-combat { left: 3900px; top: 185px; width: 1400px; height: 600px; }
+
+    #builder { left: 100px; top: 925px; width: 1300px; height: 380px; }
+    #attack-strategy { left: 1640px; top: 925px; width: 900px; height: 245px; }
+    #basic-strategy { left: 2700px; top: 925px; width: 800px; height: 220px; }
+    #skill-strategy { left: 3650px; top: 910px; width: 1100px; height: 285px; }
+    #factory-note { left: 1640px; top: 1225px; width: 3110px; }
+    #ports-note { left: 4800px; top: 910px; width: 500px; height: 285px; font-size: 15px; }
+
+    #user { left: 100px; top: 1505px; width: 620px; height: 390px; }
+    #attributes { left: 820px; top: 1505px; width: 650px; height: 635px; }
+    #character-class { left: 1540px; top: 1505px; width: 700px; height: 465px; }
+    #race { left: 1540px; top: 2080px; width: 700px; height: 340px; }
+    #mission-progress { left: 775px; top: 2260px; width: 725px; height: 650px; }
+    #character { left: 2330px; top: 1490px; width: 930px; height: 1415px; }
+    #skill { left: 3340px; top: 1505px; width: 660px; height: 515px; }
+    #mission { left: 3340px; top: 2120px; width: 720px; height: 570px; }
+    #item { left: 4140px; top: 1505px; width: 650px; height: 610px; }
+    #combat { left: 4140px; top: 2220px; width: 760px; height: 580px; }
+    #enemy { left: 4860px; top: 1505px; width: 450px; height: 570px; }
+    @media screen {
+      body:has(#uc-combat:target) .canvas { transform: translate(-3800px, -130px); }
+      body:has(#character:target) .canvas { transform: translate(-2250px, -1430px); }
+      body:has(#mission-progress:target) .canvas { transform: translate(-700px, -2200px); }
+    }
+  </style>
+</head>
+<body>
+<main class="canvas">
+  <header class="header">
+    <h1>Diagrama de Classes — Use Cases e Entities</h1>
+    <p>Crônicas do Reino · versão derivada do backend Python atual</p>
+  </header>
+
+  <aside class="legend">
+    <span class="key"><span class="swatch uc"></span><b>Use case</b></span>
+    <span class="key"><span class="swatch entity"></span><b>Entity</b></span>
+    <span class="key"><span class="swatch pattern"></span><b>Padrão</b></span>
+    <span class="key"><b>+</b>&nbsp;público</span>
+    <span class="key"><b>−</b>&nbsp;helper privado</span><br>
+    Linha contínua = associação · losango = composição · tracejada = dependência · triângulo = herança/realização
+  </aside>
+
+  <section class="package uc"><div class="package-label">app/use_case</div></section>
+  <section class="package patterns"><div class="package-label">app/domain/patterns · apoio aos use cases</div></section>
+  <section class="package entities"><div class="package-label">app/entities</div></section>
+
+  <article class="uml usecase" id="uc-create">
+    <div class="title"><span class="stereotype">«use case» UC01</span>CreateCharacterUseCase</div>
+    <div class="compartment">
+      <div class="line">+ characters: <span class="type">CharacterRepository</span></div>
+      <div class="line">+ catalog: <span class="type">CatalogRepository</span></div>
+      <div class="line">+ events: <span class="type">EventPublisher</span></div>
+    </div>
+    <div class="compartment method">
+      <div class="line">+ __init__(characters, catalog, events)</div>
+      <div class="line">+ execute(user: dict, name: str,</div>
+      <div class="line">&nbsp;&nbsp;class_id: str, race_id: str): dict</div>
+    </div>
+  </article>
+
+  <article class="uml usecase" id="uc-accept">
+    <div class="title"><span class="stereotype">«use case» UC02</span>AcceptMissionUseCase</div>
+    <div class="compartment">
+      <div class="line">+ missions: <span class="type">MissionRepository</span></div>
+      <div class="line">+ characters: <span class="type">CharacterRepository</span></div>
+      <div class="line">+ events: <span class="type">EventPublisher</span></div>
+      <div class="line">+ authorization: <span class="type">AuthorizationPolicy</span></div>
+    </div>
+    <div class="compartment method">
+      <div class="line">+ __init__(missions, characters, events, authorization)</div>
+      <div class="line">+ execute(user: dict, character_id: str,</div>
+      <div class="line">&nbsp;&nbsp;mission_id: str): dict</div>
+    </div>
+  </article>
+
+  <article class="uml usecase" id="uc-combat">
+    <div class="title"><span class="stereotype">«use case» UC03</span>PerformCombatUseCase</div>
+    <div class="compartment">
+      <div class="line">+ HIT_THRESHOLD: int = 70 {static}</div>
+      <div class="line">+ D100_MAX: int = 100 {static}</div>
+      <div class="line">+ combats: <span class="type">CombatRepository</span> · characters: <span class="type">CharacterRepository</span></div>
+      <div class="line">+ catalog: <span class="type">CatalogRepository</span> · events: <span class="type">EventPublisher</span></div>
+      <div class="line">+ authorization: <span class="type">AuthorizationPolicy</span></div>
+      <div class="line">+ id_generator: <span class="type">IdGenerator</span> · dice_roller: <span class="type">DiceRoller</span></div>
+    </div>
+    <div class="compartment method">
+      <div class="line">+ __init__(combats, characters, catalog, events, authorization, id_generator, dice_roller)</div>
+      <div class="line">+ list(user: dict, character_id: str): list[dict]</div>
+      <div class="line">+ start(user: dict, character_id: str, enemy_id: str): dict</div>
+      <div class="line">+ execute(user: dict, combat_id: str, action: str, skill_id: str | None): dict</div>
+      <div class="line private">− _flee(user: dict, combat: dict, character: Character, enemy: dict, now: str): dict</div>
+      <div class="line private">− _player_turn(character: Character, enemy: dict, action: str, skill_id: str | None, now: str): dict</div>
+      <div class="line private">− _resolve_turn(combat: dict, character: Character, enemy: dict, turn: dict, now: str): list[int]</div>
+      <div class="line private">− _publish_result(user: dict, character: Character, enemy: dict, combat: dict): None</div>
+      <div class="line private">− _roll_attack(attacker_agility: int, defender_agility: int): tuple[int, int, bool]</div>
+      <div class="line private">− _attack_hits(roll: int, attacker_agility: int, defender_agility: int): bool {classmethod}</div>
+      <div class="line private">− _hit_chance(attacker_agility: int, defender_agility: int): int {classmethod}</div>
+      <div class="line private">− _character(user: dict, character_id: str): Character</div>
+    </div>
+  </article>
+
+  <article class="uml pattern" id="builder">
+    <div class="title"><span class="stereotype">«Builder»</span>CharacterBuilder</div>
+    <div class="compartment"><div class="line">− _data: dict[str, Any]</div></div>
+    <div class="compartment method">
+      <div class="line">+ __init__()</div>
+      <div class="line">+ owned_by(player_id: str): CharacterBuilder</div>
+      <div class="line">+ named(name: str): CharacterBuilder</div>
+      <div class="line">+ from_class(character_class: dict | None): CharacterBuilder</div>
+      <div class="line">+ from_race(race: dict | None): CharacterBuilder</div>
+      <div class="line">+ build(): Character</div>
+    </div>
+  </article>
+
+  <article class="uml pattern" id="attack-strategy">
+    <div class="title"><span class="stereotype">«interface» «Strategy»</span>AttackStrategy</div>
+    <div class="compartment method"><div class="line"><i>+ execute(attacker: Character, defender: dict): dict</i></div></div>
+  </article>
+
+  <article class="uml pattern" id="basic-strategy">
+    <div class="title">BasicAttackStrategy</div>
+    <div class="compartment method"><div class="line">+ execute(attacker: Character, defender: dict): dict</div></div>
+  </article>
+
+  <article class="uml pattern" id="skill-strategy">
+    <div class="title">SkillAttackStrategy</div>
+    <div class="compartment"><div class="line">+ skill: dict | None</div></div>
+    <div class="compartment method">
+      <div class="line">+ __init__(skill: dict | None)</div>
+      <div class="line">+ execute(attacker: Character, defender: dict): dict</div>
+    </div>
+  </article>
+
+  <aside class="note" id="factory-note"><b>«factory function» select_attack_strategy(action: str, skill: dict | None): AttackStrategy</b> — seleciona BasicAttackStrategy ou SkillAttackStrategy.</aside>
+  <aside class="note" id="ports-note"><b>Ports referenciados</b><br>CatalogRepository<br>CharacterRepository<br>MissionRepository<br>CombatRepository<br>EventPublisher<br>IdGenerator<br>DiceRoller<br><small>As implementações de infraestrutura foram omitidas para manter o foco.</small></aside>
+
+  <article class="uml entity" id="user">
+    <div class="title"><span class="stereotype">«entity»</span>User</div>
+    <div class="compartment">
+      <div class="line">+ id: str</div><div class="line">+ name: str</div><div class="line">+ email: str</div>
+      <div class="line">+ password_hash: str</div><div class="line">+ role: str</div><div class="line">+ created_at: str</div>
+    </div>
+    <div class="compartment method"><div class="line">+ to_dict(): dict[str, Any]</div></div>
+  </article>
+
+  <article class="uml entity" id="attributes">
+    <div class="title"><span class="stereotype">«value object»</span>Attributes</div>
+    <div class="compartment">
+      <div class="line">+ strength: int = 0</div><div class="line">+ defense: int = 0</div>
+      <div class="line">+ agility: int = 0</div><div class="line">+ intelligence: int = 0</div>
+      <div class="line">+ vitality: int = 0</div><div class="line">+ charisma: int = 0</div>
+    </div>
+    <div class="compartment method">
+      <div class="line">+ from_dict(values: dict | None): Attributes {classmethod}</div>
+      <div class="line">+ add(modifiers: dict | None): Attributes</div>
+      <div class="line">+ increase(name: str, points: int): None</div>
+      <div class="line">+ to_dict(): dict[str, int]</div>
+    </div>
+  </article>
+
+  <article class="uml entity" id="character-class">
+    <div class="title"><span class="stereotype">«entity»</span>CharacterClass</div>
+    <div class="compartment">
+      <div class="line">+ id: str</div><div class="line">+ name: str</div><div class="line">+ description: str</div>
+      <div class="line">+ attributes: Attributes</div><div class="line">+ base_health: int</div><div class="line">+ base_energy: int</div>
+    </div>
+    <div class="compartment method"><div class="line">+ to_dict(): dict[str, Any]</div></div>
+  </article>
+
+  <article class="uml entity" id="race">
+    <div class="title"><span class="stereotype">«entity»</span>Race</div>
+    <div class="compartment">
+      <div class="line">+ id: str</div><div class="line">+ name: str</div><div class="line">+ description: str</div><div class="line">+ modifiers: Attributes</div>
+    </div>
+    <div class="compartment method"><div class="line">+ to_dict(): dict[str, Any]</div></div>
+  </article>
+
+  <article class="uml entity" id="mission-progress">
+    <div class="title"><span class="stereotype">«entity»</span>MissionProgress</div>
+    <div class="compartment">
+      <div class="line">+ id: str</div><div class="line">+ character_id: str</div><div class="line">+ mission_id: str</div>
+      <div class="line">+ target: int</div><div class="line">+ status: MissionStatus</div><div class="line">+ progress: int = 0</div>
+      <div class="line">+ accepted_at: str | None</div><div class="line">+ completed_at: str | None</div>
+      <div class="line">+ title: str</div><div class="line">+ objective: str</div>
+    </div>
+    <div class="compartment method">
+      <div class="line">+ __post_init__(): None</div><div class="line">+ update(amount: int): None</div>
+      <div class="line">+ complete(): None</div><div class="line">+ cancel(): None</div><div class="line">+ to_dict(): dict[str, Any]</div>
+    </div>
+  </article>
+
+  <article class="uml entity" id="character">
+    <div class="title"><span class="stereotype">«entity»</span>Character</div>
+    <div class="compartment">
+      <div class="line">+ id: str | None</div><div class="line">+ player_id: str</div><div class="line">+ name: str</div>
+      <div class="line">+ class_id: str</div><div class="line">+ class_name: str</div><div class="line">+ race_id: str</div>
+      <div class="line">+ race_name: str</div><div class="line">+ level: int = 1</div><div class="line">+ experience: int = 0</div>
+      <div class="line">+ health: int</div><div class="line">+ max_health: int</div><div class="line">+ energy: int</div><div class="line">+ max_energy: int</div>
+      <div class="line">+ attributes: Attributes</div><div class="line">+ attribute_points: int = 0</div><div class="line">+ coins: int = 0</div>
+      <div class="line">+ status: CharacterStatus</div><div class="line">+ skill_ids: list[str]</div><div class="line">+ skills: list[dict]</div>
+      <div class="line">+ equipment_bonuses: dict[str, int]</div><div class="line">+ created_at: str | None</div>
+    </div>
+    <div class="compartment method">
+      <div class="line">+ __post_init__(): None</div><div class="line">+ receive_damage(amount: int): None</div>
+      <div class="line">+ spend_energy(amount: int): None</div><div class="line">+ recover(): None</div>
+      <div class="line">+ experience_for_next_level(): int</div><div class="line">+ gain_experience(amount: int): list[int]</div>
+      <div class="line">+ distribute_attribute(name: str, points: int): None</div><div class="line">+ to_dict(): dict[str, Any]</div>
+    </div>
+  </article>
+
+  <article class="uml entity" id="skill">
+    <div class="title"><span class="stereotype">«entity»</span>Skill</div>
+    <div class="compartment">
+      <div class="line">+ id: str</div><div class="line">+ name: str</div><div class="line">+ description: str</div><div class="line">+ type: str</div>
+      <div class="line">+ energy_cost: int</div><div class="line">+ damage: int</div><div class="line">+ effect: str</div><div class="line">+ cooldown: int</div>
+      <div class="line">+ min_level: int</div><div class="line">+ class_id: str | None</div><div class="line">+ race_id: str | None</div>
+    </div>
+    <div class="compartment method"><div class="line">+ to_dict(): dict[str, Any]</div></div>
+  </article>
+
+  <article class="uml entity" id="mission">
+    <div class="title"><span class="stereotype">«entity»</span>Mission</div>
+    <div class="compartment">
+      <div class="line">+ id: str</div><div class="line">+ title: str</div><div class="line">+ description: str</div><div class="line">+ objective: str</div>
+      <div class="line">+ min_level: int</div><div class="line">+ status: str</div><div class="line">+ target: int</div>
+      <div class="line">+ reward_experience: int</div><div class="line">+ reward_coins: int</div>
+      <div class="line">+ reward_item_id: str | None</div><div class="line">+ reward_item_quantity: int</div>
+    </div>
+    <div class="compartment method"><div class="line">+ to_dict(): dict[str, Any]</div></div>
+  </article>
+
+  <article class="uml entity" id="item">
+    <div class="title"><span class="stereotype">«entity»</span>Item</div>
+    <div class="compartment">
+      <div class="line">+ id: str</div><div class="line">+ name: str</div><div class="line">+ type: str</div><div class="line">+ description: str</div>
+      <div class="line">+ rarity: str</div><div class="line">+ value: int</div><div class="line">+ effect_health: int</div>
+      <div class="line">+ effect_energy: int</div><div class="line">+ attack_bonus: int</div><div class="line">+ defense_bonus: int</div>
+      <div class="line">+ required_class_id: str | None</div><div class="line">+ min_level: int</div>
+    </div>
+    <div class="compartment method"><div class="line">+ to_dict(): dict[str, Any]</div></div>
+  </article>
+
+  <article class="uml entity" id="combat">
+    <div class="title"><span class="stereotype">«entity»</span>Combat</div>
+    <div class="compartment">
+      <div class="line">+ id: str</div><div class="line">+ character_id: str</div><div class="line">+ enemy_id: str</div><div class="line">+ enemy_name: str</div>
+      <div class="line">+ status: str</div><div class="line">+ enemy_health: int</div><div class="line">+ enemy_max_health: int</div>
+      <div class="line">+ started_at: str</div><div class="line">+ finished_at: str | None</div><div class="line">+ turns: list[dict]</div>
+    </div>
+    <div class="compartment method"><div class="line">+ to_dict(): dict[str, Any]</div></div>
+  </article>
+
+  <article class="uml entity" id="enemy">
+    <div class="title"><span class="stereotype">«entity»</span>Enemy</div>
+    <div class="compartment">
+      <div class="line">+ id: str</div><div class="line">+ name: str</div><div class="line">+ type: str</div><div class="line">+ level: int</div>
+      <div class="line">+ health: int</div><div class="line">+ strength: int</div><div class="line">+ defense: int</div><div class="line">+ agility: int</div>
+      <div class="line">+ reward_experience: int</div><div class="line">+ reward_coins: int</div><div class="line">+ reward_item_id: str | None</div>
+    </div>
+    <div class="compartment method"><div class="line">+ to_dict(): dict</div></div>
+  </article>
+
+  <svg class="connections" viewBox="0 0 5400 3200" aria-label="Relacionamentos UML">
+    <defs>
+      <marker id="arrow" markerWidth="13" markerHeight="13" refX="11" refY="5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L11,5 L0,10" fill="none" stroke="#316eaa" stroke-width="1.5"/></marker>
+      <marker id="triangle" markerWidth="15" markerHeight="15" refX="13" refY="7" orient="auto" markerUnits="strokeWidth"><path d="M1,1 L13,7 L1,13 Z" fill="#fff" stroke="#a96b18" stroke-width="1.5"/></marker>
+      <marker id="diamond" markerWidth="18" markerHeight="13" refX="3" refY="6" orient="auto" markerUnits="strokeWidth"><path d="M2,6 L8,1 L14,6 L8,11 Z" fill="#2f7d57" stroke="#2f7d57"/></marker>
+    </defs>
+
+    <!-- Dependências dos casos de uso -->
+    <path class="dependency" marker-end="url(#arrow)" d="M800 740 L800 925"/><text class="rel-label dep-label" x="820" y="850">«uses»</text>
+    <path class="dependency" marker-end="url(#arrow)" d="M2700 740 L2700 1390 L2795 1390 L2795 1490"/><text class="rel-label dep-label" x="2720" y="1365">«orchestrates»</text>
+    <path class="dependency" marker-end="url(#arrow)" d="M2240 740 L2240 1385 L1135 1385 L1135 2260"/><text class="rel-label dep-label" x="1170" y="1415">«creates»</text>
+    <path class="dependency" marker-end="url(#arrow)" d="M4550 775 L4550 1225"/><text class="rel-label dep-label" x="4570" y="835">«selects»</text>
+    <path class="dependency" marker-end="url(#arrow)" d="M5050 775 L5050 1400 L5150 1400 L5150 1505"/><text class="rel-label dep-label" x="5070" y="1380">«loads»</text>
+    <path class="dependency" marker-end="url(#arrow)" d="M4700 775 L4700 1380 L4520 1380 L4520 2220"/><text class="rel-label dep-label" x="4540" y="1370">«controls»</text>
+
+    <!-- Builder e Strategy -->
+    <path class="pattern-link" marker-end="url(#arrow)" d="M750 1305 L750 1395 L2600 1395 L2600 1490"/><text class="rel-label" x="1450" y="1380">«builds»</text>
+    <path class="pattern-link" marker-end="url(#arrow)" d="M500 1305 L500 1450 L1890 1450 L1890 1505"/><text class="rel-label" x="1510" y="1435">«reads class data»</text>
+    <path class="pattern-link" marker-end="url(#arrow)" d="M1050 1305 L1050 1430 L2130 1430 L2130 2080"/><text class="rel-label" x="1080" y="1415">«reads race data»</text>
+    <path class="inheritance" marker-end="url(#triangle)" d="M3100 925 L3100 850 L2090 850 L2090 925"/>
+    <path class="inheritance" marker-end="url(#triangle)" d="M4200 910 L4200 825 L2090 825 L2090 925"/>
+    <path class="pattern-link" marker-end="url(#arrow)" d="M3200 1225 L3200 1185 L2090 1185 L2090 1170"/>
+
+    <!-- Associações entre entidades -->
+    <path class="assoc" d="M720 1690 L760 1690 L760 1450 L2470 1450 L2470 1490"/>
+    <text class="rel-label" x="735" y="1670">1</text><text class="rel-label" x="2420" y="1440">0..*</text><text class="rel-label" x="1200" y="1435">possui</text>
+
+    <path class="assoc" d="M2240 1740 L2330 1740"/>
+    <text class="rel-label" x="2200" y="1718">1</text><text class="rel-label" x="2290" y="1718">0..*</text><text class="rel-label" x="2245" y="1780">classe</text>
+
+    <path class="assoc" d="M2240 2260 L2290 2260 L2290 2080 L2330 2080"/>
+    <text class="rel-label" x="2200" y="2240">1</text><text class="rel-label" x="2310" y="2060">0..*</text><text class="rel-label" x="2220" y="2190">raça</text>
+
+    <path class="composition" marker-start="url(#diamond)" d="M2330 2350 L2280 2350 L2280 2180 L1470 2180 L1470 1850"/>
+    <text class="rel-label" x="1500" y="2160">attributes 1</text><text class="rel-label" x="2260" y="2330">1</text>
+
+    <path class="composition" marker-start="url(#diamond)" d="M1540 1810 L1510 1810 L1510 1760 L1470 1760"/>
+    <text class="rel-label" x="1480" y="1738">1</text>
+    <path class="composition" marker-start="url(#diamond)" d="M1540 2240 L1510 2240 L1510 1900 L1470 1900"/>
+    <text class="rel-label" x="1480" y="1880">1</text>
+
+    <path class="assoc" d="M3260 1760 L3340 1760"/>
+    <text class="rel-label" x="3265" y="1735">0..*</text><text class="rel-label" x="3310" y="1800">0..*</text><text class="rel-label" x="3260" y="1840">habilidades</text>
+
+    <path class="assoc" d="M3260 1880 L3300 1880 L3300 1435 L4460 1435 L4460 1505"/>
+    <text class="rel-label" x="3300" y="1418">inventário 0..*</text>
+
+    <path class="composition" marker-start="url(#diamond)" d="M2330 2590 L2280 2590 L2280 2950 L1500 2950 L1500 2580"/>
+    <text class="rel-label" x="1515" y="2932">progressos 0..*</text>
+
+    <path class="assoc" d="M1500 2750 L3200 2750 L3200 2400 L3340 2400"/>
+    <text class="rel-label" x="1530" y="2730">0..*</text><text class="rel-label" x="3285" y="2380">1</text><text class="rel-label" x="2500" y="2730">refere-se a</text>
+
+    <path class="composition" marker-start="url(#diamond)" d="M2795 2905 L2795 3010 L4520 3010 L4520 2800"/>
+    <text class="rel-label" x="2840" y="2990">combates 0..*</text>
+
+    <path class="assoc" d="M5080 2075 L5080 2180 L4900 2180 L4900 2510"/>
+    <text class="rel-label" x="5095" y="2140">1</text><text class="rel-label" x="4915" y="2480">0..*</text><text class="rel-label" x="4930" y="2210">participa</text>
+
+    <path class="assoc" d="M4060 2270 L4100 2270 L4100 2115 L4300 2115"/>
+    <text class="rel-label" x="4070" y="2095">recompensa 0..1</text>
+    <path class="assoc" d="M4860 1840 L4790 1840"/>
+    <text class="rel-label" x="4740" y="1818">0..1 recompensa</text>
+  </svg>
+
+  <footer class="footer"><span>Fonte: classes e assinaturas presentes em app/entities, app/use_case e app/domain/patterns.</span><span>Diagrama atualizado do backend</span></footer>
+</main>
+</body>
+</html>

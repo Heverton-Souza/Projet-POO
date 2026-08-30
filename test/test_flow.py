@@ -35,19 +35,27 @@ class IntegratedFlowTests(unittest.TestCase):
         player = services.auth.authenticate(login["token"])
         warrior = next(item for item in services.admin.list_catalog("classes") if item["name"] == "Guerreiro")
         human = next(item for item in services.admin.list_catalog("races") if item["name"] == "Humano")
-        character = services.characters.create(player, "Lina Escarlate", warrior["id"], human["id"])
+        character = services.use_cases.create_character.execute(
+            player,
+            "Lina Escarlate",
+            warrior["id"],
+            human["id"],
+        )
 
-        mission = services.missions.list_available(player, character["id"])[0]
-        accepted = services.missions.accept(player, character["id"], mission["id"])
+        available_missions = services.missions.list_available(player, character["id"])
+        self.assertTrue(all(mission["minLevel"] <= character["level"] for mission in available_missions))
+        mission = available_missions[0]
+        accepted = services.use_cases.accept_mission.execute(player, character["id"], mission["id"])
+        self.assertEqual(services.characters.get(player, character["id"])["status"], "EM_MISSAO")
         services.missions.update(player, accepted["id"], mission["target"])
         completed = services.missions.complete(player, accepted["id"])
         self.assertEqual(completed["progress"]["status"], "CONCLUIDA")
         self.assertGreaterEqual(completed["character"]["coins"], mission["rewardCoins"])
 
         enemy = next(item for item in services.admin.list_catalog("enemies") if item["name"] == "Goblin Batedor")
-        combat = services.combats.start(player, character["id"], enemy["id"])
+        combat = services.use_cases.perform_combat.start(player, character["id"], enemy["id"])
         while combat["status"] == "EM_ANDAMENTO":
-            combat = services.combats.act(player, combat["id"], "ATAQUE")["combat"]
+            combat = services.use_cases.perform_combat.execute(player, combat["id"], "ATAQUE")["combat"]
         self.assertEqual(combat["status"], "VITORIA")
 
         leveled_character = services.characters.get(player, character["id"])
@@ -83,7 +91,12 @@ class IntegratedFlowTests(unittest.TestCase):
         human = next(
             item for item in services.admin.list_catalog("races") if item["name"] == "Humano"
         )
-        character = services.characters.create(player, "Nilo", warrior["id"], human["id"])
+        character = services.use_cases.create_character.execute(
+            player,
+            "Nilo",
+            warrior["id"],
+            human["id"],
+        )
 
         master = services.auth.authenticate(
             services.auth.login("mestre@teste.local", "Mestre@123")["token"]
@@ -148,14 +161,20 @@ class IntegratedFlowTests(unittest.TestCase):
         enemy = next(
             item for item in services.admin.list_catalog("enemies") if item["name"] == "Goblin Batedor"
         )
-        character = services.characters.create(player, "Dara", warrior["id"], human["id"])
-        combat = services.combats.start(player, character["id"], enemy["id"])
+        character = services.use_cases.create_character.execute(
+            player,
+            "Dara",
+            warrior["id"],
+            human["id"],
+        )
+        combat_use_case = services.use_cases.perform_combat
+        combat = combat_use_case.start(player, character["id"], enemy["id"])
         player_agility = character["attributes"]["agility"]
         enemy_agility = enemy["agility"]
         minimum_player_hit = 71 - player_agility + enemy_agility
 
-        services.combats.dice_roller = FixedDiceRoller([minimum_player_hit - 1, 1])
-        missed = services.combats.act(player, combat["id"], "ATAQUE")
+        combat_use_case.dice_roller = FixedDiceRoller([minimum_player_hit - 1, 1])
+        missed = combat_use_case.execute(player, combat["id"], "ATAQUE")
         self.assertFalse(missed["turn"]["playerHit"])
         self.assertFalse(missed["turn"]["enemyHit"])
         self.assertEqual(missed["turn"]["damage"], 0)
@@ -169,8 +188,8 @@ class IntegratedFlowTests(unittest.TestCase):
             30 + enemy_agility - player_agility,
         )
 
-        services.combats.dice_roller = FixedDiceRoller([minimum_player_hit, 100])
-        hit = services.combats.act(player, combat["id"], "ATAQUE")
+        combat_use_case.dice_roller = FixedDiceRoller([minimum_player_hit, 100])
+        hit = combat_use_case.execute(player, combat["id"], "ATAQUE")
         self.assertTrue(hit["turn"]["playerHit"])
         self.assertTrue(hit["turn"]["enemyHit"])
         self.assertGreater(hit["turn"]["damage"], 0)
@@ -181,7 +200,7 @@ class IntegratedFlowTests(unittest.TestCase):
         self.assertGreaterEqual(hit["turn"]["playerHitChance"], 0)
         self.assertLessEqual(hit["turn"]["playerHitChance"], 100)
 
-        persisted = services.combats.list(player, character["id"])[0]["turns"]
+        persisted = combat_use_case.list(player, character["id"])[0]["turns"]
         self.assertEqual(len(persisted), 2)
         self.assertEqual(persisted[0]["playerRoll"], minimum_player_hit - 1)
         self.assertEqual(persisted[1]["enemyRoll"], 100)

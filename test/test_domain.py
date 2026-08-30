@@ -1,7 +1,7 @@
 import unittest
 import hashlib
 
-from app.domain.entities import MissionProgress
+from app.entities import MissionProgress
 from app.domain.errors import ConflictError
 from app.domain.patterns import BasicAttackStrategy, CharacterBuilder, SkillAttackStrategy
 from app.infrastructure.security import ScryptPasswordHasher

@@ -1,6 +1,6 @@
 const state = {
   token: localStorage.getItem('rpg-token'), user: null, characters: [], selected: null,
-  catalogs: {}, combat: null, inventory: [], features: [],
+  catalogs: {}, combat: null, inventory: [],
   admin: { resource: 'skills', editingId: null, characters: [], users: [], inventoryCharacterId: null }
 };
 
@@ -18,14 +18,9 @@ const playerAttributes = [
   ['charisma', 'Carisma']
 ];
 
-const attributeFields = (group) => [
-  { key: `${group}.strength`, label: 'Força', type: 'number', default: 0 },
-  { key: `${group}.defense`, label: 'Defesa', type: 'number', default: 0 },
-  { key: `${group}.agility`, label: 'Agilidade', type: 'number', default: 0 },
-  { key: `${group}.intelligence`, label: 'Inteligência', type: 'number', default: 0 },
-  { key: `${group}.vitality`, label: 'Vitalidade', type: 'number', default: 0 },
-  { key: `${group}.charisma`, label: 'Carisma', type: 'number', default: 0 }
-];
+const attributeFields = (group) => playerAttributes.map(([key, label]) => ({
+  key: `${group}.${key}`, label, type: 'number', default: 0
+}));
 
 const catalogDefinitions = {
   classes: {
@@ -301,8 +296,6 @@ $('#grant-item-form').addEventListener('submit', async (event) => {
 });
 
 async function enterGame() {
-  const health = await api('/health');
-  state.features = health.features ?? [];
   state.user = await api('/auth/me');
   authView.classList.add('hidden');
   gameView.classList.remove('hidden');
@@ -420,7 +413,6 @@ function renderCombat() {
   if (!state.combat || state.combat.status !== 'EM_ANDAMENTO') return void ($('#combat-box').innerHTML = '');
   const skills = state.selected.skills.filter((skill) => state.selected.level >= skill.minLevel);
   const potions = state.inventory.filter((item) => item.type === 'POCAO' && item.quantity > 0);
-  const diceReady = state.features.includes('d100-opposed-agility');
   const turns = state.combat.turns ?? [];
   const lastTurn = turns.at(-1);
   const c = state.selected;
@@ -432,7 +424,6 @@ function renderCombat() {
       <div><span class="eyebrow">Combate em andamento</span><h3>${escapeHtml(c.name)} × ${escapeHtml(state.combat.enemyName)}</h3></div>
       <span class="dice-label">d100</span>
     </div>
-    ${diceReady ? '' : `<div class="compat-warning"><strong>Reinicie o servidor</strong><span>O backend em execução ainda não possui a regra do dado. Os ataques foram bloqueados para evitar dano incorreto.</span></div>`}
     <div class="combatants">
       <div class="combatant">
         <div class="combatant-title"><strong>${escapeHtml(c.name)}</strong><span>Nível ${c.level}</span></div>
@@ -460,8 +451,8 @@ function renderCombat() {
       }).join('') : '<span class="muted">Nenhuma poção no inventário.</span>'}</div>
     </div>
     <div class="combat-actions">
-      <button class="button primary" data-action="combat" data-combat-action="ATAQUE" ${diceReady ? '' : 'disabled'}>Ataque comum</button>
-      ${skills.map((skill) => `<button class="button" data-action="combat" data-combat-action="HABILIDADE" data-skill-id="${escapeHtml(skill.id)}" ${!diceReady || c.energy < skill.energyCost ? 'disabled' : ''}>${escapeHtml(skill.name)} <small>${skill.energyCost} energia</small></button>`).join('')}
+      <button class="button primary" data-action="combat" data-combat-action="ATAQUE">Ataque comum</button>
+      ${skills.map((skill) => `<button class="button" data-action="combat" data-combat-action="HABILIDADE" data-skill-id="${escapeHtml(skill.id)}" ${c.energy < skill.energyCost ? 'disabled' : ''}>${escapeHtml(skill.name)} <small>${skill.energyCost} energia</small></button>`).join('')}
       <button class="button danger" data-action="combat" data-combat-action="FUGIR">Fugir</button>
     </div>
     ${turns.length ? `<details class="combat-log"><summary>Últimos turnos (${turns.length})</summary>${turns.slice(-4).reverse().map(renderCombatLogEntry).join('')}</details>` : ''}
@@ -469,9 +460,6 @@ function renderCombat() {
 }
 
 async function combatAction(action, skillId) {
-  if (action !== 'FUGIR' && !state.features.includes('d100-opposed-agility')) {
-    throw new Error('Reinicie o servidor para ativar a regra d100 com Agilidade antes de atacar.');
-  }
   const result = await api(`/combats/${state.combat.id}/actions`, { method: 'POST', body: JSON.stringify({ action, skillId }) });
   state.combat = result.combat;
   if (action === 'FUGIR') {

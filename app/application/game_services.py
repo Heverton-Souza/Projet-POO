@@ -1,21 +1,17 @@
-from datetime import UTC, datetime
 from typing import Any
 
-from app.domain.entities import Character, MissionProgress
-from app.domain.enums import CharacterStatus, CombatStatus, ItemType, MissionStatus, UserRole
+from app.entities import Character, MissionProgress
+from app.domain.enums import CharacterStatus, ItemType, UserRole
 from app.domain.errors import ConflictError, NotFoundError, ValidationError
 from app.domain.events import DomainEvent
-from app.domain.patterns import CharacterBuilder, select_attack_strategy
 
 from .authorization import AuthorizationPolicy
+from .helpers import get_accessible_character, publish_level_events
 from .ports import (
     CatalogRepository,
     CharacterRepository,
-    CombatRepository,
-    DiceRoller,
     EventPublisher,
     HistoryRepository,
-    IdGenerator,
     InventoryRepository,
     MissionRepository,
     UserRepository,
@@ -26,51 +22,18 @@ class CharacterService:
     def __init__(
         self,
         characters: CharacterRepository,
-        catalog: CatalogRepository,
         events: EventPublisher,
         authorization: AuthorizationPolicy,
     ) -> None:
         self.characters = characters
-        self.catalog = catalog
         self.events = events
         self.authorization = authorization
-
-    def create(self, user: dict[str, Any], name: str, class_id: str, race_id: str) -> dict[str, Any]:
-        character_class = self.catalog.find_class_with_skills(class_id)
-        race = self.catalog.find_race_with_skills(race_id)
-        if not character_class:
-            raise NotFoundError("Classe")
-        if not race:
-            raise NotFoundError("Raça")
-        character = (
-            CharacterBuilder()
-            .owned_by(user["id"])
-            .named(name)
-            .from_class(character_class)
-            .from_race(race)
-            .build()
-        )
-        created = self.characters.create_character(character)
-        self.events.publish(
-            DomainEvent(
-                "CHARACTER_CREATED",
-                user["id"],
-                created.id,
-                f"Personagem {created.name} criado como {character_class['name']} da raça {race['name']}.",
-                {"classId": class_id, "raceId": race_id},
-            )
-        )
-        return created.to_dict()
 
     def list_mine(self, user: dict[str, Any]) -> list[dict[str, Any]]:
         return [character.to_dict() for character in self.characters.list_characters_by_player(user["id"])]
 
     def get_entity(self, user: dict[str, Any], character_id: str) -> Character:
-        character = self.characters.find_character(character_id)
-        if not character:
-            raise NotFoundError("Personagem")
-        self.authorization.require_character_owner(user, character)
-        return character
+        return get_accessible_character(self.characters, self.authorization, user, character_id)
 
     def get(self, user: dict[str, Any], character_id: str) -> dict[str, Any]:
         return self.get_entity(user, character_id).to_dict()
@@ -132,27 +95,6 @@ class MissionService:
         character = self._character(user, character_id)
         return [item.to_dict() for item in self.missions.list_character_missions(character.id or "")]
 
-    def accept(self, user: dict[str, Any], character_id: str, mission_id: str) -> dict[str, Any]:
-        character = self._character(user, character_id)
-        mission = self.missions.find_mission(mission_id)
-        if not mission:
-            raise NotFoundError("Missão")
-        if mission["status"] != MissionStatus.AVAILABLE.value:
-            raise ConflictError("A missão não está disponível.")
-        if character.level < mission["minLevel"]:
-            raise ConflictError(f"O personagem precisa estar no nível {mission['minLevel']}.")
-        progress = self.missions.accept_mission(character.id or "", mission_id)
-        self.events.publish(
-            DomainEvent(
-                "MISSION_ACCEPTED",
-                user["id"],
-                character.id,
-                f"Missão \"{mission['title']}\" aceita.",
-                {"missionId": mission_id},
-            )
-        )
-        return progress.to_dict()
-
     def update(self, user: dict[str, Any], progress_id: str, amount: int = 1) -> dict[str, Any]:
         progress = self._progress(user, progress_id)
         if isinstance(amount, bool) or not isinstance(amount, int) or amount <= 0:
@@ -187,7 +129,7 @@ class MissionService:
                 },
             )
         )
-        self._publish_levels(user, character, levels)
+        publish_level_events(self.events, user, character, levels)
         return {
             "progress": progress.to_dict(),
             "character": character.to_dict(),
@@ -205,11 +147,7 @@ class MissionService:
         return self.missions.save_mission_progress(progress).to_dict()
 
     def _character(self, user: dict[str, Any], character_id: str) -> Character:
-        character = self.characters.find_character(character_id)
-        if not character:
-            raise NotFoundError("Personagem")
-        self.authorization.require_character_owner(user, character)
-        return character
+        return get_accessible_character(self.characters, self.authorization, user, character_id)
 
     def _progress(self, user: dict[str, Any], progress_id: str) -> MissionProgress:
         progress = self.missions.find_mission_progress(progress_id)
@@ -217,19 +155,6 @@ class MissionService:
             raise NotFoundError("Progresso da missão")
         self._character(user, progress.character_id)
         return progress
-
-    def _publish_levels(self, user: dict[str, Any], character: Character, levels: list[int]) -> None:
-        for level in levels:
-            self.events.publish(
-                DomainEvent(
-                    "LEVEL_UP",
-                    user["id"],
-                    character.id,
-                    f"{character.name} alcançou o nível {level}.",
-                    {"level": level},
-                )
-            )
-
 
 class InventoryService:
     def __init__(
@@ -313,11 +238,7 @@ class InventoryService:
         return character.to_dict()
 
     def _character(self, user: dict[str, Any], character_id: str) -> Character:
-        character = self.characters.find_character(character_id)
-        if not character:
-            raise NotFoundError("Personagem")
-        self.authorization.require_character_owner(user, character)
-        return character
+        return get_accessible_character(self.characters, self.authorization, user, character_id)
 
     @staticmethod
     def _quantity(quantity: int) -> int:
@@ -326,196 +247,7 @@ class InventoryService:
         return quantity
 
 
-class CombatService:
-    HIT_THRESHOLD = 70
-    D100_MAX = 100
-
-    def __init__(
-        self,
-        combats: CombatRepository,
-        characters: CharacterRepository,
-        catalog: CatalogRepository,
-        events: EventPublisher,
-        authorization: AuthorizationPolicy,
-        id_generator: IdGenerator,
-        dice_roller: DiceRoller,
-    ) -> None:
-        self.combats = combats
-        self.characters = characters
-        self.catalog = catalog
-        self.events = events
-        self.authorization = authorization
-        self.id_generator = id_generator
-        self.dice_roller = dice_roller
-
-    def list(self, user: dict[str, Any], character_id: str) -> list[dict[str, Any]]:
-        self._character(user, character_id)
-        return self.combats.list_character_combats(character_id)
-
-    def start(self, user: dict[str, Any], character_id: str, enemy_id: str) -> dict[str, Any]:
-        character = self._character(user, character_id)
-        if character.status not in {CharacterStatus.ACTIVE, CharacterStatus.ON_MISSION}:
-            raise ConflictError("Somente personagens ativos ou em missão podem iniciar um combate.")
-        enemy = self.catalog.find_catalog("enemies", enemy_id)
-        if not enemy:
-            raise NotFoundError("Inimigo")
-        combat = {
-            "id": self.id_generator.generate(),
-            "characterId": character_id,
-            "enemyId": enemy_id,
-            "status": CombatStatus.IN_PROGRESS.value,
-            "enemyHealth": enemy["health"],
-            "enemyMaxHealth": enemy["health"],
-            "startedAt": datetime.now(UTC).isoformat(),
-            "finishedAt": None,
-        }
-        character.status = CharacterStatus.IN_COMBAT
-        created = self.combats.create_combat(combat, character)
-        self.events.publish(
-            DomainEvent(
-                "COMBAT_STARTED",
-                user["id"],
-                character.id,
-                f"Combate iniciado contra {enemy['name']}.",
-                {"combatId": created["id"], "enemyId": enemy_id},
-            )
-        )
-        return created
-
-    def act(
-        self, user: dict[str, Any], combat_id: str, action: str, skill_id: str | None = None
-    ) -> dict[str, Any]:
-        combat = self.combats.find_combat(combat_id)
-        if not combat:
-            raise NotFoundError("Combate")
-        if combat["status"] != CombatStatus.IN_PROGRESS.value:
-            raise ConflictError("Este combate já foi finalizado.")
-        character = self._character(user, combat["characterId"])
-        enemy = self.catalog.find_catalog("enemies", combat["enemyId"])
-        assert enemy is not None
-        now = datetime.now(UTC).isoformat()
-
-        if action == "FUGIR":
-            combat.update(status=CombatStatus.FLED.value, finishedAt=now)
-            character.status = CharacterStatus.ACTIVE
-            turn = {"actor": "PERSONAGEM", "action": "FUGIR", "damage": 0, "enemyDamage": 0, "occurredAt": now}
-            combat = self.combats.save_combat_turn(combat, turn, character)
-            self.events.publish(
-                DomainEvent("COMBAT_FLED", user["id"], character.id, f"Fuga do combate contra {enemy['name']}.", {"combatId": combat_id})
-            )
-            return {"combat": combat, "character": character.to_dict(), "turn": turn, "levelsGained": []}
-
-        skill = None
-        if action == "HABILIDADE":
-            if not skill_id or skill_id not in character.skill_ids:
-                raise ConflictError("O personagem não possui esta habilidade.")
-            skill = self.catalog.find_catalog("skills", skill_id)
-        result = select_attack_strategy(action, skill).execute(character, {"defense": enemy["defense"]})
-        character.spend_energy(result["energyCost"])
-        player_hit_chance = self._hit_chance(
-            character.attributes.agility,
-            enemy["agility"],
-        )
-        player_roll = self.dice_roller.roll_d100()
-        player_hit = self._attack_hits(
-            player_roll,
-            character.attributes.agility,
-            enemy["agility"],
-        )
-        player_damage = result["damage"] if player_hit else 0
-        combat["enemyHealth"] = max(0, combat["enemyHealth"] - player_damage)
-        turn = {
-            "actor": "PERSONAGEM",
-            "action": result["label"],
-            "damage": player_damage,
-            "enemyDamage": 0,
-            "playerRoll": player_roll,
-            "playerHitChance": player_hit_chance,
-            "playerHit": player_hit,
-            "enemyRoll": None,
-            "enemyHitChance": None,
-            "enemyHit": None,
-            "occurredAt": now,
-        }
-        levels: list[int] = []
-
-        if combat["enemyHealth"] == 0:
-            combat.update(status=CombatStatus.VICTORY.value, finishedAt=now)
-            character.status = CharacterStatus.ACTIVE
-            levels.extend(character.gain_experience(enemy["rewardExperience"]))
-            character.coins += enemy["rewardCoins"]
-            turn["rewardItemId"] = enemy["rewardItemId"]
-        else:
-            enemy_hit_chance = self._hit_chance(
-                enemy["agility"],
-                character.attributes.agility,
-            )
-            enemy_roll = self.dice_roller.roll_d100()
-            enemy_hit = self._attack_hits(
-                enemy_roll,
-                enemy["agility"],
-                character.attributes.agility,
-            )
-            turn.update(
-                enemyRoll=enemy_roll,
-                enemyHitChance=enemy_hit_chance,
-                enemyHit=enemy_hit,
-            )
-            if enemy_hit:
-                turn["enemyDamage"] = max(
-                    1,
-                    enemy["strength"]
-                    - character.attributes.defense
-                    - character.equipment_bonuses.get("defense", 0),
-                )
-                character.receive_damage(turn["enemyDamage"])
-            if character.health == 0:
-                combat.update(status=CombatStatus.DEFEAT.value, finishedAt=now)
-
-        combat = self.combats.save_combat_turn(combat, turn, character)
-        if combat["status"] != CombatStatus.IN_PROGRESS.value:
-            won = combat["status"] == CombatStatus.VICTORY.value
-            self.events.publish(
-                DomainEvent(
-                    "COMBAT_WON" if won else "COMBAT_LOST",
-                    user["id"],
-                    character.id,
-                    f"{'Vitória' if won else 'Derrota'} contra {enemy['name']}.",
-                    {"combatId": combat_id},
-                )
-            )
-        for level in levels:
-            self.events.publish(
-                DomainEvent("LEVEL_UP", user["id"], character.id, f"{character.name} alcançou o nível {level}.", {"level": level})
-            )
-        return {"combat": combat, "character": character.to_dict(), "turn": turn, "levelsGained": levels}
-
-    @classmethod
-    def _attack_hits(
-        cls,
-        roll: int,
-        attacker_agility: int,
-        defender_agility: int,
-    ) -> bool:
-        adjusted_roll = roll + attacker_agility - defender_agility
-        return adjusted_roll > cls.HIT_THRESHOLD
-
-    @classmethod
-    def _hit_chance(cls, attacker_agility: int, defender_agility: int) -> int:
-        highest_miss = cls.HIT_THRESHOLD - attacker_agility + defender_agility
-        return cls.D100_MAX - max(0, min(cls.D100_MAX, highest_miss))
-
-    def _character(self, user: dict[str, Any], character_id: str) -> Character:
-        character = self.characters.find_character(character_id)
-        if not character:
-            raise NotFoundError("Personagem")
-        self.authorization.require_character_owner(user, character)
-        return character
-
-
 class AdminService:
-    RESOURCES = {"classes", "races", "skills", "items", "missions", "enemies"}
-
     def __init__(
         self,
         catalog: CatalogRepository,
@@ -529,26 +261,22 @@ class AdminService:
         self.authorization = authorization
 
     def list_catalog(self, resource: str) -> list[dict[str, Any]]:
-        self._resource(resource)
         return self.catalog.list_catalog(resource)
 
     def create(self, user: dict[str, Any], resource: str, data: dict[str, Any]) -> dict[str, Any]:
         self.authorization.require_game_master(user)
-        self._resource(resource)
         return self.catalog.create_catalog(resource, data, user["id"])
 
     def update(
         self, user: dict[str, Any], resource: str, item_id: str, data: dict[str, Any]
     ) -> dict[str, Any]:
         self.authorization.require_game_master(user)
-        self._resource(resource)
         if not self.catalog.find_catalog(resource, item_id):
             raise NotFoundError("Registro")
         return self.catalog.update_catalog(resource, item_id, data)
 
     def remove(self, user: dict[str, Any], resource: str, item_id: str) -> None:
         self.authorization.require_game_master(user)
-        self._resource(resource)
         if not self.catalog.find_catalog(resource, item_id):
             raise NotFoundError("Registro")
         self.catalog.delete_catalog(resource, item_id)
@@ -566,16 +294,14 @@ class AdminService:
 
     def update_user_role(self, user: dict[str, Any], user_id: str, role: str) -> dict[str, Any]:
         self.authorization.require_administrator(user)
-        if role not in {item.value for item in UserRole}:
+        try:
+            role = UserRole(role).value
+        except ValueError:
             raise ValidationError("Perfil de usuário inválido.")
         if not self.users.find_user(user_id):
             raise NotFoundError("Usuário")
         updated = self.users.update_user_role(user_id, role)
         return {key: value for key, value in updated.items() if key != "passwordHash"}
-
-    def _resource(self, resource: str) -> None:
-        if resource not in self.RESOURCES:
-            raise NotFoundError("Catálogo")
 
 
 class HistoryService:
@@ -590,8 +316,5 @@ class HistoryService:
         self.authorization = authorization
 
     def list(self, user: dict[str, Any], character_id: str) -> list[dict[str, Any]]:
-        character = self.characters.find_character(character_id)
-        if not character:
-            raise NotFoundError("Personagem")
-        self.authorization.require_character_owner(user, character)
+        get_accessible_character(self.characters, self.authorization, user, character_id)
         return self.history.list_history(character_id)

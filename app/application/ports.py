@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Callable
 
-from app.domain.entities import Character, MissionProgress
+from app.entities import Character, MissionProgress
 from app.domain.events import DomainEvent
 
 
@@ -79,7 +79,7 @@ class MissionRepository(ABC):
     def find_mission(self, mission_id: str) -> dict[str, Any] | None: ...
 
     @abstractmethod
-    def accept_mission(self, character_id: str, mission_id: str) -> MissionProgress: ...
+    def accept_mission(self, character: Character, mission_id: str) -> MissionProgress: ...
 
     @abstractmethod
     def find_mission_progress(self, progress_id: str) -> MissionProgress | None: ...

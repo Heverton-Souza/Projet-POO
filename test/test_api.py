@@ -27,7 +27,7 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
     async def test_interface_authentication_and_admin_route(self):
         health = await self.client.get("/api/health")
         self.assertEqual(health.status_code, 200)
-        self.assertIn("d100-opposed-agility", health.json()["features"])
+        self.assertEqual(health.json(), {"status": "ok"})
 
         page = await self.client.get("/")
         self.assertEqual(page.status_code, 200)

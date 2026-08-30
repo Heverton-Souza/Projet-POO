@@ -118,11 +118,8 @@ def create_app(config: Config | None = None) -> FastAPI:
     TokenDep = Annotated[str | None, Depends(get_token)]
 
     @app.get("/api/health")
-    def health() -> dict[str, Any]:
-        return {
-            "status": "ok",
-            "features": ["d100-opposed-agility", "combat-items"],
-        }
+    def health() -> dict[str, str]:
+        return {"status": "ok"}
 
     @app.post("/api/auth/register", status_code=status.HTTP_201_CREATED)
     def register(data: RegisterRequest, services: ServicesDep) -> dict[str, Any]:
@@ -151,7 +148,7 @@ def create_app(config: Config | None = None) -> FastAPI:
 
     @app.post("/api/characters", status_code=status.HTTP_201_CREATED)
     def create_character(data: CharacterRequest, services: ServicesDep, user: UserDep) -> dict[str, Any]:
-        return services.characters.create(user, data.name, data.class_id, data.race_id)
+        return services.use_cases.create_character.execute(user, data.name, data.class_id, data.race_id)
 
     @app.get("/api/characters/{character_id}")
     def get_character(character_id: str, services: ServicesDep, user: UserDep) -> dict[str, Any]:
@@ -182,7 +179,7 @@ def create_app(config: Config | None = None) -> FastAPI:
     def accept_mission(
         character_id: str, mission_id: str, services: ServicesDep, user: UserDep
     ) -> dict[str, Any]:
-        return services.missions.accept(user, character_id, mission_id)
+        return services.use_cases.accept_mission.execute(user, character_id, mission_id)
 
     @app.patch("/api/mission-progress/{progress_id}")
     def update_mission(
@@ -226,17 +223,17 @@ def create_app(config: Config | None = None) -> FastAPI:
 
     @app.get("/api/characters/{character_id}/combats")
     def combats(character_id: str, services: ServicesDep, user: UserDep) -> list[dict[str, Any]]:
-        return services.combats.list(user, character_id)
+        return services.use_cases.perform_combat.list(user, character_id)
 
     @app.post("/api/characters/{character_id}/combats/{enemy_id}", status_code=status.HTTP_201_CREATED)
     def start_combat(character_id: str, enemy_id: str, services: ServicesDep, user: UserDep) -> dict[str, Any]:
-        return services.combats.start(user, character_id, enemy_id)
+        return services.use_cases.perform_combat.start(user, character_id, enemy_id)
 
     @app.post("/api/combats/{combat_id}/actions")
     def combat_action(
         combat_id: str, data: CombatActionRequest, services: ServicesDep, user: UserDep
     ) -> dict[str, Any]:
-        return services.combats.act(user, combat_id, data.action, data.skill_id)
+        return services.use_cases.perform_combat.execute(user, combat_id, data.action, data.skill_id)
 
     @app.get("/api/characters/{character_id}/history")
     def history(character_id: str, services: ServicesDep, user: UserDep) -> list[dict[str, Any]]:
